@@ -1,0 +1,181 @@
+
+
+Operation b1;  Begin T1: Record is added to transaction table with Tid=T1
+
++----------------+-----------+--------+----------------+------------+--------------------+
+| Transaction Id | TimeStamp | Status | Items Accessed | Blocked By | Operations Waiting |
++----------------+-----------+--------+----------------+------------+--------------------+
+|       T1       |     1     | active |       []       |     []     |         []         |
++----------------+-----------+--------+----------------+------------+--------------------+
++-----------+-----------+--------------+--------------+
+| Data Item | Lock Mode | Holding Tids | Waiting Tids |
++-----------+-----------+--------------+--------------+
++-----------+-----------+--------------+--------------+
+
+
+Operation r1(Y); T1 acquired read lock on item Y
++----------------+-----------+--------+----------------+------------+--------------------+
+| Transaction Id | TimeStamp | Status | Items Accessed | Blocked By | Operations Waiting |
++----------------+-----------+--------+----------------+------------+--------------------+
+|       T1       |     1     | active |     ['Y']      |     []     |         []         |
++----------------+-----------+--------+----------------+------------+--------------------+
++-----------+-----------+--------------+--------------+
+| Data Item | Lock Mode | Holding Tids | Waiting Tids |
++-----------+-----------+--------------+--------------+
+|     Y     |    read   |    ['T1']    |      []      |
++-----------+-----------+--------------+--------------+
+
+
+Operation w1(Y); Read lock upgraded to write lock for item Y by T1, lock table updated to mode write
++----------------+-----------+--------+----------------+------------+--------------------+
+| Transaction Id | TimeStamp | Status | Items Accessed | Blocked By | Operations Waiting |
++----------------+-----------+--------+----------------+------------+--------------------+
+|       T1       |     1     | active |     ['Y']      |     []     |         []         |
++----------------+-----------+--------+----------------+------------+--------------------+
++-----------+-----------+--------------+--------------+
+| Data Item | Lock Mode | Holding Tids | Waiting Tids |
++-----------+-----------+--------------+--------------+
+|     Y     |   write   |    ['T1']    |      []      |
++-----------+-----------+--------------+--------------+
+
+
+Operation r1(Z); T1 acquired read lock on item Z
++----------------+-----------+--------+----------------+------------+--------------------+
+| Transaction Id | TimeStamp | Status | Items Accessed | Blocked By | Operations Waiting |
++----------------+-----------+--------+----------------+------------+--------------------+
+|       T1       |     1     | active |   ['Y', 'Z']   |     []     |         []         |
++----------------+-----------+--------+----------------+------------+--------------------+
++-----------+-----------+--------------+--------------+
+| Data Item | Lock Mode | Holding Tids | Waiting Tids |
++-----------+-----------+--------------+--------------+
+|     Y     |   write   |    ['T1']    |      []      |
+|     Z     |    read   |    ['T1']    |      []      |
++-----------+-----------+--------------+--------------+
+
+
+Operation b2;  Begin T2: Record is added to transaction table with Tid=T2
+
++----------------+-----------+--------+----------------+------------+--------------------+
+| Transaction Id | TimeStamp | Status | Items Accessed | Blocked By | Operations Waiting |
++----------------+-----------+--------+----------------+------------+--------------------+
+|       T1       |     1     | active |   ['Y', 'Z']   |     []     |         []         |
+|       T2       |     2     | active |       []       |     []     |         []         |
++----------------+-----------+--------+----------------+------------+--------------------+
++-----------+-----------+--------------+--------------+
+| Data Item | Lock Mode | Holding Tids | Waiting Tids |
++-----------+-----------+--------------+--------------+
+|     Y     |   write   |    ['T1']    |      []      |
+|     Z     |    read   |    ['T1']    |      []      |
++-----------+-----------+--------------+--------------+
+
+
+Operation r2(Y); Y is locked by T1, wound wait is checked comparing T2 timestamp with timestamp(s) of T1
+Because T2 is younger than ['T1'],T2 waits on Y to be release by ['T1'] List of waiting operations of T2->r2(Y);
++----------------+-----------+--------+----------------+------------+--------------------+
+| Transaction Id | TimeStamp | Status | Items Accessed | Blocked By | Operations Waiting |
++----------------+-----------+--------+----------------+------------+--------------------+
+|       T1       |     1     | active |   ['Y', 'Z']   |     []     |         []         |
+|       T2       |     2     | block  |       []       |   ['T1']   |     ['r2(Y);']     |
++----------------+-----------+--------+----------------+------------+--------------------+
++-----------+-----------+--------------+--------------+
+| Data Item | Lock Mode | Holding Tids | Waiting Tids |
++-----------+-----------+--------------+--------------+
+|     Y     |   write   |    ['T1']    |    ['T2']    |
+|     Z     |    read   |    ['T1']    |      []      |
++-----------+-----------+--------------+--------------+
+
+
+Operation b3;  Begin T3: Record is added to transaction table with Tid=T3
+
++----------------+-----------+--------+----------------+------------+--------------------+
+| Transaction Id | TimeStamp | Status | Items Accessed | Blocked By | Operations Waiting |
++----------------+-----------+--------+----------------+------------+--------------------+
+|       T1       |     1     | active |   ['Y', 'Z']   |     []     |         []         |
+|       T2       |     2     | block  |       []       |   ['T1']   |     ['r2(Y);']     |
+|       T3       |     3     | active |       []       |     []     |         []         |
++----------------+-----------+--------+----------------+------------+--------------------+
++-----------+-----------+--------------+--------------+
+| Data Item | Lock Mode | Holding Tids | Waiting Tids |
++-----------+-----------+--------------+--------------+
+|     Y     |   write   |    ['T1']    |    ['T2']    |
+|     Z     |    read   |    ['T1']    |      []      |
++-----------+-----------+--------------+--------------+
+
+
+Operation r3(Z); T3 has acquired read lock on Z
++----------------+-----------+--------+----------------+------------+--------------------+
+| Transaction Id | TimeStamp | Status | Items Accessed | Blocked By | Operations Waiting |
++----------------+-----------+--------+----------------+------------+--------------------+
+|       T1       |     1     | active |   ['Y', 'Z']   |     []     |         []         |
+|       T2       |     2     | block  |       []       |   ['T1']   |     ['r2(Y);']     |
+|       T3       |     3     | active |     ['Z']      |     []     |         []         |
++----------------+-----------+--------+----------------+------------+--------------------+
++-----------+-----------+--------------+--------------+
+| Data Item | Lock Mode | Holding Tids | Waiting Tids |
++-----------+-----------+--------------+--------------+
+|     Y     |   write   |    ['T1']    |    ['T2']    |
+|     Z     |    read   | ['T1', 'T3'] |      []      |
++-----------+-----------+--------------+--------------+
+
+
+Operation w1(Z); Z is locked by T1,T3, wound wait is checked comparing T1 timestamp with timestamp(s) of T3
+. T3 is wounded as it is younger than T1, T3 is aborted and releases item
+Items held byT3:
+Z unlocked from T3 read lock
+
+
+Operation w1(Z); Read lock upgraded to write lock for item Z by T1, lock table updated to mode write
++----------------+-----------+--------+----------------+------------+--------------------+
+| Transaction Id | TimeStamp | Status | Items Accessed | Blocked By | Operations Waiting |
++----------------+-----------+--------+----------------+------------+--------------------+
+|       T1       |     1     | active |   ['Y', 'Z']   |     []     |         []         |
+|       T2       |     2     | block  |       []       |   ['T1']   |     ['r2(Y);']     |
+|       T3       |     3     | abort  |                |    None    |                    |
++----------------+-----------+--------+----------------+------------+--------------------+
++-----------+-----------+--------------+--------------+
+| Data Item | Lock Mode | Holding Tids | Waiting Tids |
++-----------+-----------+--------------+--------------+
+|     Y     |   write   |    ['T1']    |    ['T2']    |
+|     Z     |   write   |    ['T1']    |      []      |
++-----------+-----------+--------------+--------------+
+
+
+Operation e1;T1 state = committed 
+Release locks held by T1 i.e Y,Z should be unlocked
+Y unlocked from T1 write lock
+T2 has resumed 
+executing r2(Y);
+
+
+Operation r2(Y); T2 has acquired read lock on Y
+Z unlocked from T1 write lock
++----------------+-----------+-----------+----------------+------------+--------------------+
+| Transaction Id | TimeStamp |   Status  | Items Accessed | Blocked By | Operations Waiting |
++----------------+-----------+-----------+----------------+------------+--------------------+
+|       T1       |     1     | committed |                |    None    |                    |
+|       T2       |     2     |   active  |     ['Y']      |     []     |         []         |
+|       T3       |     3     |   abort   |                |    None    |                    |
++----------------+-----------+-----------+----------------+------------+--------------------+
++-----------+-----------+--------------+--------------+
+| Data Item | Lock Mode | Holding Tids | Waiting Tids |
++-----------+-----------+--------------+--------------+
+|     Y     |    read   |    ['T2']    |      []      |
++-----------+-----------+--------------+--------------+
+w3(Z);Transaction already aborted. No changes in tables
+e3;Transaction already aborted. No changes in tables
+
+
+Operation e2;T2 state = committed 
+Release locks held by T2 i.e Y should be unlocked
+Y unlocked from T2 read lock
++----------------+-----------+-----------+----------------+------------+--------------------+
+| Transaction Id | TimeStamp |   Status  | Items Accessed | Blocked By | Operations Waiting |
++----------------+-----------+-----------+----------------+------------+--------------------+
+|       T1       |     1     | committed |                |    None    |                    |
+|       T2       |     2     | committed |                |    None    |                    |
+|       T3       |     3     |   abort   |                |    None    |                    |
++----------------+-----------+-----------+----------------+------------+--------------------+
++-----------+-----------+--------------+--------------+
+| Data Item | Lock Mode | Holding Tids | Waiting Tids |
++-----------+-----------+--------------+--------------+
++-----------+-----------+--------------+--------------+
